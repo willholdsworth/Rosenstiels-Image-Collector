@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job.Cards — Rosenstiels Image Collector</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #ffffff; color: #000000; height: 100vh; overflow: hidden; display: flex; flex-direction: column; line-height: 1.5; }
+        .topbar { background: #000000; color: #ffffff; padding: 0 24px; height: 50px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+        .topbar-title { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+        .topbar-dot { width: 3px; height: 3px; border-radius: 50%; background: #555; }
+        .topbar-sub { font-size: 0.67rem; font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase; color: #888; }
+        .main { display: grid; grid-template-columns: 290px 1fr 1fr; flex: 1; overflow: hidden; }
+        .col { border-right: 1px solid #000000; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+        .col:last-child { border-right: none; }
+        .col-head { padding: 10px 18px; border-bottom: 1px solid #000000; flex-shrink: 0; background: #ffffff; height: 68px; overflow: hidden; }
+        .col-head-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+        .col-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: #000000; }
+        .col-status { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #000000; border: 2px solid #ffffff; padding: 3px 12px; border-radius: 25px; background: #ffffff; white-space: nowrap; }
+        .col-desc { font-size: 0.7rem; font-weight: 400; color: #666666; line-height: 1.5; }
+        .col-body { flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; min-height: 0; }
+        textarea { width: 100%; flex: 1; border: none; outline: none; resize: none; font-family: monospace; font-size: 0.7rem; font-weight: 400; line-height: 1.85; background: transparent; color: #000000; padding: 0; text-transform: uppercase; letter-spacing: 0.02em; }
+        textarea::placeholder { color: #aaaaaa; text-transform: none; letter-spacing: 0; }
+        .col-foot { padding: 10px 14px; border-top: 1px solid #000000; display: flex; gap: 7px; align-items: center; flex-shrink: 0; background: #ffffff; }
+        .btn { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; padding: 8px 20px; border-radius: 25px; border: 2px solid #000000; cursor: pointer; transition: all 0.2s ease; white-space: nowrap; }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: #000000; color: #ffffff; }
+        .btn-primary:hover { background: #333333; }
+        .btn-ghost { background: #ffffff; color: #000000; }
+        .btn-ghost:hover { background: #f5f5f5; }
+        .btn-copy { background: #000000; color: #ffffff; border: 2px solid #000000; padding: 3px 12px; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: all 0.2s ease; border-radius: 25px; font-family: inherit; }
+        .btn-copy:hover { background: #333333; border-color: #333333; }
+        .btn-copy:disabled { background: #ffffff; color: #cccccc; border-color: #cccccc; cursor: default; }
+        .btn-copy-list { background: #ffffff; color: #000000; border: 2px solid #000000; }
+        .btn-copy-list:hover { background: #f5f5f5; border-color: #000000; }
+        .btn-copy-list:disabled { background: #ffffff; color: #cccccc; border-color: #cccccc; cursor: default; }
+        .log-item { display: flex; align-items: flex-start; gap: 6px; padding: 5px 8px; border-radius: 25px; background: #ffffff; border: none; transition: background 0.3s, box-shadow 0.3s, opacity 0.3s; justify-content: space-between; }
+        .log-item.queued { opacity: 0.4; }
+        .log-item.active { background: #f0f0f0; box-shadow: 0 2px 8px rgba(0,0,0,0.12); opacity: 1; border-radius: 8px; }
+        .log-item.found { opacity: 1; }
+        .log-item.not-found { background: #000000; opacity: 1; }
+        .log-item.not-found .log-cleaned,
+        .log-item.not-found .log-section-label,
+        .log-item.not-found .log-missing { color: #ffffff; }
+        .log-item.partial { opacity: 1; }
+        .log-section-label { font-size: 0.44rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #888888; opacity: 0.7; margin-bottom: 0; line-height: 1.2; }
+        .log-cleaned { font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #000000; line-height: 1.25; }
+        .log-divider { border: none; border-top: 1px dashed #cccccc; margin: 3px 0; }
+        .log-compare { display: flex; gap: 0; align-items: stretch; flex: 1; min-width: 0; }
+        .log-compare-col-input { flex: 0 0 25%; min-width: 0; }
+        .log-compare-col-result { flex: 0 0 75%; min-width: 0; padding-left: 0; }
+        .log-compare-divider { width: 1px; background: #cccccc; margin: 0 7px; flex-shrink: 0; }
+        .log-found-title { font-size: 0.6rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.02em; color: #000000; line-height: 1.25; }
+        .log-artist { font-size: 0.57rem; font-weight: 400; text-transform: uppercase; letter-spacing: 0.03em; color: #666666; }
+        .log-url { font-size: 0.53rem; color: #000000; word-break: break-all; line-height: 1.3; opacity: 0.5; text-decoration: none; display: block; } .log-url:hover { opacity: 1; text-decoration: underline; }
+        .log-missing { font-size: 0.57rem; font-weight: 400; text-transform: uppercase; letter-spacing: 0.03em; color: #ffffff; }
+        .diff-missing { background: #fee2e2; color: #991b1b; border-radius: 2px; padding: 0 2px; }
+        .diff-extra { background: #fde68a; color: #78350f; border-radius: 2px; padding: 0 2px; }
+        .log-searching-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+        .log-searching-text { font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #000000; white-space: nowrap; flex-shrink: 0; }
+        .log-phase { font-size: 0.6rem; font-weight: 400; text-transform: uppercase; letter-spacing: 0.04em; color: #000000; opacity: 0.6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+        .dots { display: flex; gap: 3px; align-items: center; flex-shrink: 0; }
+        .dots span { width: 3px; height: 3px; border-radius: 50%; background: #000000; animation: pulse 1.2s ease-in-out infinite; }
+        .dots span:nth-child(1) { animation-delay: 0s; }
+        .dots span:nth-child(2) { animation-delay: 0.2s; }
+        .dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes pulse { 0%,80%,100%{transform:scale(0.5);opacity:0.2} 40%{transform:scale(1);opacity:1} }
+        .pill { font-size: 0.5rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 3px 8px; border-radius: 25px; border: 1px solid #000000; white-space: nowrap; flex-shrink: 0; align-self: center; width: 110px; text-align: center; box-sizing: border-box; margin-left: auto; }
+        .pill-queued { background: #ffffff; color: #aaaaaa; border-color: #aaaaaa; }
+        .pill-active { background: #f0f0f0; color: #000000; border-color: #000000; }
+        .pill-found { background: #000000; color: #ffffff; border-color: #000000; }
+        .pill-miss { background: #ffffff; color: #000000; border-color: #000000; }
+        .pill-partial { background: #e0e0e0; color: #000000; border-color: #000000; }
+        .log-candidates-label { font-size: 0.57rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #555555; margin-top: 7px; margin-bottom: 4px; }
+        .log-candidates { display: flex; flex-direction: column; gap: 4px; }
+        .log-candidate { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: #f5f5f5; border: none; border-radius: 25px; }
+        .log-candidate-thumb { width: 32px; height: 32px; object-fit: cover; border-radius: 2px; flex-shrink: 0; background: #e0e0e0; }
+        .log-candidate-thumb-ph { width: 32px; height: 32px; flex-shrink: 0; background: #e0e0e0; border-radius: 2px; display:flex; align-items:center; justify-content:center; font-size:0.8rem; opacity:0.4; }
+        .log-candidate-info { min-width: 0; flex: 1; }
+        .log-candidate-title { font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #000000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .log-candidate-artist { font-size: 0.57rem; color: #555555; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .log-candidate-check { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; accent-color: #000000; }
+        .output-area { flex: 1; overflow-y: auto; padding: 14px 18px; min-height: 0; }
+        #output { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 0.7rem; font-weight: 400; color: #000000; letter-spacing: 0.02em; display: flex; flex-direction: column; gap: 8px; }
+        .out-card { display: flex; gap: 0; align-items: stretch; padding: 0; background: #ffffff; border: none; border-radius: 0; overflow: hidden; }
+        .out-card.not-found { background: #000000; }
+        .out-thumb-wrap { flex-shrink: 0; overflow: hidden; background: #e0e0e0; align-self: center; border-radius: 6px; margin: 8px 0 8px 8px; border: 1px solid #e0e0e0; } .out-thumb { display: block; max-width: 100px; max-height: 100px; width: auto; height: auto; }
+        .out-card.duplicate { opacity: 0.5; }
+        .out-duplicate-badge { font-size: 0.55rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #888888; margin-top: 4px; display: block; }
+        .out-text { font-size: 0.67rem; line-height: 1.85; flex: 1; min-width: 0; padding: 8px 10px; }
+        .out-url { color: #000000; text-decoration: none; } .out-url:hover { text-decoration: underline; }
+        .out-text.miss { color: #ffffff; font-weight: 600; }
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 40px; gap: 10px; color: #888888; text-align: center; padding: 40px 24px 24px; }
+        .empty-icon { font-size: 1.3rem; opacity: 0.2; }
+        .empty-text { font-size: 0.66rem; font-weight: 400; text-transform: uppercase; letter-spacing: 0.06em; line-height: 1.7; opacity: 0.5; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cccccc; border-radius: 4px; }
+        @media (max-width: 768px) {
+            body { height: auto; overflow: auto; }
+            .main { grid-template-columns: 1fr; overflow: visible; height: auto; }
+            .col { border-right: none; border-bottom: 1px solid #000000; overflow: visible; min-height: 0; height: auto; }
+            .col:last-child { border-bottom: none; }
+            .col-body { overflow: visible; height: auto; flex: none; max-height: none; }
+            textarea { min-height: 120px; max-height: 200px; overflow-y: auto; }
+            #logList { overflow: visible; height: auto; }
+            #output { overflow: visible; height: auto; }
+            .output-area { overflow: visible; height: auto; flex: none; padding: 10px 14px; }
+            .topbar { height: auto; padding: 10px 16px; flex-wrap: wrap; gap: 8px; }
+        }
+    </style>
+</head>
+<body>
+<div class="topbar">
+    <div class="topbar-title">Rosenstiels Image Collector Tool</div>
+</div>
+<div class="main">
+    <div class="col">
+        <div class="col-head">
+            <div class="col-head-row"><div class="col-label">Job.Cards Input</div></div>
+            <div class="col-desc">Paste order details from Job.Cards to fetch and format each image link for Rosenstiels.</div>
+        </div>
+        <div class="col-body">
+            <textarea id="jobCardInput" placeholder="Paste job card notes here...&#10;&#10;IMAGE - WANDERLUST VENICE ERIKA GREENFIELD&#10;IMAGE - A CLOUD STUDY - SUNSET CONSTABLE&#10;XT44703&#10;https://www.rosenstiels.com/art/print/..."></textarea>
+        </div>
+        <div class="col-foot">
+            <button class="btn btn-primary" onclick="runSearch()">Run Search</button>
+            <button class="btn btn-ghost" onclick="resetAll()">Clear</button>
+        </div>
+    </div>
+    <div class="col">
+        <div class="col-head">
+            <div class="col-head-row">
+                <div class="col-label">Items Found</div>
+                <div class="col-status" id="colStatus">—</div>
+            </div>
+            <div class="col-desc" id="foundDesc">Cleaned items appear instantly. URLs load as each is found.</div>
+        </div>
+        <div class="col-body" id="logList">
+            <div class="empty-state">
+                <div class="empty-icon">◎</div>
+                <div class="empty-text">Paste a job card and click<br>Run Search to begin</div>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="col-head">
+            <div class="col-head-row"><div class="col-label">Generated Email Text</div><div style="display:flex;gap:6px;margin-left:auto;"><button class="btn-copy btn-copy-list" id="copyListBtn" onclick="copyList()" disabled><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:5px;margin-top:-1px"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2v1"/></svg>Copy List</button><button class="btn-copy" id="copyBtn" onclick="copyOutput()" disabled><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:5px;margin-top:-1px"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2v1"/></svg>Copy Text</button></div></div>
+            <div class="col-desc">Ready-to-send formatted list for Rosenstiels.</div>
+        </div>
+        <div class="output-area">
+            <div id="output">
+                <div class="empty-state">
+                    <div class="empty-icon">✉</div>
+                    <div class="empty-text">Email text will appear<br>as results are found</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    const PROXY    = "https://api.codetabs.com/v1/proxy?quest=";
+    const PG_SIZE  = 120;
+    const RATE_MAX = 4;
+    const RATE_WIN = 1000;
+    let   rateTs   = [];
+
+    async function rateFetch(url) {
+        const now = Date.now();
+        rateTs = rateTs.filter(t => now - t < RATE_WIN);
+        if (rateTs.length >= RATE_MAX) {
+            const wait = RATE_WIN - (now - rateTs[rateTs.length - RATE_MAX]) + 25;
+            await new Promise(r => setTimeout(r, wait));
+        }
+        rateTs.push(Date.now());
+        const res = await fetch(PROXY + encodeURIComponent(url), { headers: { 'Accept': 'text/html' } });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.text();
+    }
+
+    function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function tokenise(s) {
+        return s ? s.toUpperCase().replace(/[-–,\.]/g,' ').split(/\s+/).filter(w => w.length > 1) : [];
+    }
+
+    function levenshtein(a, b) {
+        const m = a.length, n = b.length;
+        const dp = Array.from({ length: m+1 }, (_, i) => [i]);
+        for (let j = 0; j <= n; j++) dp[0][j] = j;
+        for (let i = 1; i <= m; i++)
+            for (let j = 1; j <= n; j++)
+                dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+        return dp[m][n];
+    }
+
+    function tokensMatch(a, b) {
+        if (a === b) return true;
+        if (a.length <= 2 || b.length <= 2) return a === b;
+        const maxDist = a.length <= 4 ? 1 : a.length <= 7 ? 2 : 3;
+        return levenshtein(a, b) <= maxDist;
+    }
+
+    function tokenCovered(tok, pool) {
+        return pool.some(p => tokensMatch(tok, p));
+    }
+
+    function matchScore(inputToks, resultToks) {
+        const uncoveredInput  = inputToks.filter(t => !tokenCovered(t, resultToks));
+        const uncoveredResult = resultToks.filter(t => !tokenCovered(t, inputToks));
+        return { uncoveredInput, uncoveredResult };
+    }
+
+    const NOISE = [
+        /^\d{2}-[A-Z]{3}-\d{2}$/i, /^\d+[\.,]\d+$/, /^[A-Z]{2,3}$/,
+        /^(IN|ON|WALL|FLOOR|CEILING|PRODUCTION|DISPATCH|DELIVERY|DEPOSIT|PAID|CUSTOMER|ORDER|QTY|FRAME|MOUNT|MECHANISM|CUSTOM|ROLLING|WITH|IMAGE|PRINT|ARTWORK)$/i
+    ];
+
+    function parseBlob(text) {
+        const entries = [];
+        const lines = text.split('\n');
+        for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line) continue;
+            const urlM = line.match(/https?:\/\/(?:www\.)?rosenstiels\.com\/art\/print\/[^\s"')>]*/i);
+            if (urlM) { entries.push({ type: 'url', value: urlM[0], raw: urlM[0] }); continue; }
+            const xtM = line.match(/\bXT\s*(\d{4,6})\b/i);
+            if (xtM) { entries.push({ type: 'xt', value: 'XT' + xtM[1], raw: line }); continue; }
+            const nameM = line.match(/(?:IMAGE|PRINT|ARTWORK?)\s*[-:]\s*(.+)/i);
+            if (nameM) {
+                const s = nameM[1].trim().replace(/https?:\/\/\S+/gi, '').trim();
+                if (s.length > 2 && !NOISE.some(p => p.test(s))) entries.push({ type: 'name', value: s, raw: line });
+            }
+        }
+        return entries;
+    }
+
+    function cleanLabel(raw) {
+        return raw.replace(/^(IMAGE|PRINT|ARTWORK)\s*[-:]\s*/i, '').replace(/https?:\/\/\S+/gi, '').trim();
+    }
+
+    function searchUrl(q, order, page) {
+        return `https://www.rosenstiels.com/catalogue/search?q=${encodeURIComponent(q.toLowerCase().trim())}&o=${order}&s=${PG_SIZE}&n=${page}`;
+    }
+
+    const searchResultCache = new Map();
+    const productCache      = new Map();
+
+    function parseCeilingFromHtml(html) {
+        const m = html.match(/data-page-ceiling="(\d+)"/);
+        return m ? parseInt(m[1], 10) : null;
+    }
+
+    function extractProductsFromSearchHtml(html) {
+        const products = [];
+        const liRe = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+        let liM;
+        while ((liM = liRe.exec(html)) !== null) {
+            const block = liM[1];
+            const hrefM = block.match(/href="(\/art\/print\/([^"?]+))"/);
+            if (!hrefM) continue;
+            const url = 'https://www.rosenstiels.com' + hrefM[1];
+            if (productCache.has(url) && productCache.get(url) === 'SKIP') continue;
+            const titleM  = block.match(/class="title"[^>]*>([^<]+)</);
+            const artistM = block.match(/class="artist"[^>]*>([^<]+)</);
+            const thumbM  = block.match(/<img[^>]+src="([^"]+)"/);
+            if (!titleM) continue;
+            const title  = titleM[1].trim();
+            const artist = artistM ? artistM[1].trim() : '';
+            const thumb  = thumbM ? thumbM[1].trim() : '';
+            if (title.length < 3) continue;
+            const p = { title, artist, url, thumb };
+            productCache.set(url, p);
+            products.push(p);
+        }
+        return products;
+    }
+
+    async function fetchAllSearchProducts(q, order, statusCb, label) {
+        const key = `${order}::${q.toLowerCase().trim()}`;
+        if (searchResultCache.has(key)) return searchResultCache.get(key);
+        if (statusCb) statusCb(`${label} — page 1…`);
+        let html1;
+        try { html1 = await rateFetch(searchUrl(q, order, 1)); } catch { searchResultCache.set(key, []); return []; }
+        const page1Products = extractProductsFromSearchHtml(html1);
+        if (!page1Products.length) { searchResultCache.set(key, []); return []; }
+        const ceiling = parseCeilingFromHtml(html1) || 1;
+        let allProducts = [...page1Products];
+        if (ceiling > 1) {
+            if (statusCb) statusCb(`${label} — ${ceiling} pages, fetching…`);
+            const pageNums = Array.from({ length: ceiling - 1 }, (_, i) => i + 2);
+            const PGBATCH = 4;
+            for (let i = 0; i < pageNums.length; i += PGBATCH) {
+                const batch = pageNums.slice(i, i + PGBATCH);
+                const htmls = await Promise.all(batch.map(pg => rateFetch(searchUrl(q, order, pg)).catch(() => '')));
+                for (const html of htmls) allProducts.push(...extractProductsFromSearchHtml(html));
+            }
+        }
+        searchResultCache.set(key, allProducts);
+        return allProducts;
+    }
+
+    async function fetchProductDirect(url) {
+        if (productCache.has(url)) {
+            const cached = productCache.get(url);
+            return cached === 'SKIP' ? null : cached;
+        }
+        try {
+            const html    = await rateFetch(url);
+            const titleM  = html.match(/<h1[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)</) || html.match(/<h1[^>]*>([^<]{3,})<\/h1>/);
+            const artistM = html.match(/class="artist[^"]*"[^>]*>\s*<a[^>]*>([^<]+)</) || html.match(/<h2[^>]*>([^<]+)<\/h2>/);
+            const thumbM  = html.match(/class="canvas"[\s\S]{0,200}<img[^>]+src="([^"]+)"/);
+            const title   = titleM ? titleM[1].trim() : '';
+            const artist  = artistM ? artistM[1].trim() : '';
+            const thumb   = thumbM ? thumbM[1].trim() : '';
+            if (!title || title.length < 3) { productCache.set(url, 'SKIP'); return null; }
+            const p = { title, artist, url, thumb };
+            productCache.set(url, p);
+            return p;
+        } catch { productCache.set(url, 'SKIP'); return null; }
+    }
+
+    function classifyProduct(p, inputToks) {
+        const titleToks  = tokenise(p.title);
+        const artistToks = tokenise(p.artist);
+        const allResultToks = [...titleToks, ...artistToks];
+        const uncoveredInput = inputToks.filter(t => !tokenCovered(t, allResultToks));
+        const uncoveredTitle = titleToks.filter(t => !tokenCovered(t, inputToks));
+        if (uncoveredInput.length === 0 && uncoveredTitle.length === 0) return { type: 'exact', score: 1000 };
+        const coveredIn = inputToks.length - uncoveredInput.length;
+        const coveredTitle = titleToks.length - uncoveredTitle.length;
+        const ratio = (coveredIn + coveredTitle) / (inputToks.length + titleToks.length);
+        if (uncoveredInput.length === 0 && ratio >= 0.8) return { type: 'partial', score: Math.round(ratio * 400) };
+        if (ratio >= 0.7) return { type: 'partial', score: Math.round(ratio * 250) };
+        return { type: 'none', score: 0 };
+    }
+
+    async function searchProducts(q, order, statusCb, label) {
+        return fetchAllSearchProducts(q, order, statusCb, label);
+    }
+
+    function extractSearchQueries(inputToks) {
+        const queries = [];
+        const n = inputToks.length;
+        for (let start = 0; start <= n - 1; start++) {
+            for (let len = Math.min(3, n - start); len >= 1; len--) {
+                const q = inputToks.slice(start, start + len).join(' ');
+                if (q.length > 2) queries.push(q);
+            }
+        }
+        const seen = new Set();
+        return queries.filter(q => { if (seen.has(q)) return false; seen.add(q); return true; });
+    }
+
+    async function smartSearch(raw, statusCb) {
+        const clean     = cleanLabel(raw);
+        const inputToks = tokenise(clean).filter(t => !NOISE.some(n => n.test(t)));
+
+        let bestExact   = null;
+        let bestPartial = null;
+        let bestPartialScore = -1;
+        const seenUrls  = new Set();
+        const candidates = [];
+
+        const words = inputToks;
+        const searchVariants = [];
+        for (let n = Math.min(3, words.length); n >= 1; n--) {
+            searchVariants.push({ q: words.slice(-n).join(' '), order: 'ByArtist', label: `Artist ${n}w` });
+        }
+        for (let n = Math.min(3, words.length); n >= 1; n--) {
+            searchVariants.push({ q: words.slice(0, n).join(' '), order: 'ByTitle', label: `Title ${n}w` });
+        }
+        searchVariants.push({ q: clean, order: 'ByRelevance', label: 'Relevance' });
+
+        for (const { q, order, label } of searchVariants) {
+            if (q.length < 2) continue;
+            const products = await searchProducts(q, order, statusCb, label);
+            for (const p of products) {
+                if (seenUrls.has(p.url)) continue;
+                seenUrls.add(p.url);
+                const { type, score } = classifyProduct(p, inputToks);
+                if (type === 'exact') { bestExact = p; }
+                else if (type === 'partial' && score > bestPartialScore) {
+                    bestPartialScore = score;
+                    bestPartial = p;
+                    if (!candidates.find(c => c.url === p.url)) candidates.push(p);
+                }
+            }
+            if (bestExact) break;
+        }
+
+        if (bestExact) return { result: bestExact, candidates: [] };
+
+        const sortedCandidates = candidates.sort((a, b) => {
+            const sa = classifyProduct(a, inputToks).score;
+            const sb = classifyProduct(b, inputToks).score;
+            return sb - sa;
+        }).slice(0, 8);
+
+        if (sortedCandidates.length === 1) return { result: sortedCandidates[0], candidates: [], autoSelected: true };
+
+        return { result: null, candidates: sortedCandidates, inputToks };
+    }
+
+    async function xtSearch(xtCode, statusCb) {
+        for (const order of ['ByRelevance', 'ByArtist', 'ByTitle']) {
+            const key = `${order}::${xtCode.toLowerCase()}`;
+            if (searchResultCache.has(key)) {
+                const cached = searchResultCache.get(key);
+                if (cached.length) {
+                    const match = cached.find(p => p.url.toUpperCase().includes(xtCode.toUpperCase()));
+                    if (match) return match;
+                    return cached[0];
+                }
+                continue;
+            }
+            if (statusCb) statusCb(`XT ${order} — page 1`);
+            let html;
+            try { html = await rateFetch(searchUrl(xtCode, order, 1)); } catch { continue; }
+            const products = extractProductsFromSearchHtml(html);
+            searchResultCache.set(key, products);
+            if (products.length) {
+                const match = products.find(p => p.url.toUpperCase().includes(xtCode.toUpperCase()));
+                if (match) return match;
+                return products[0];
+            }
+        }
+        return null;
+    }
+
+    function extractRef(url) {
+        const parts = url.split('/').filter(Boolean);
+        return parts[parts.length - 2] || parts[parts.length - 1] || url;
+    }
+
+    function fmt(p) {
+        return `Artist - ${p.artist}\nImage - ${p.title}\nImage Reference - ${extractRef(p.url)}\n${p.url}\n\n`;
+    }
+
+    let activePhaseEl = null;
+
+    function createQueuedNode(label) {
+        const div = document.createElement('div');
+        div.className = 'log-item queued';
+        div.innerHTML = `
+            <div class="log-compare">
+                <div class="log-compare-col-input">
+                    <div class="log-section-label">Input</div>
+                    <div class="log-cleaned">${escHtml(label)}</div>
+                </div>
+                <div class="log-compare-divider"></div>
+                <div class="log-compare-col-result">
+                    <div class="log-section-label">Rosenstiels</div>
+                    <div class="log-found-title" style="opacity:0.3">—</div>
+                </div>
+            </div>
+            <span class="pill pill-queued">Queued</span>`;
+        return div;
+    }
+
+    function setNodeActive(div, label) {
+        div.className = 'log-item active';
+        div.innerHTML = `
+            <div class="log-compare">
+                <div class="log-compare-col-input">
+                    <div class="log-section-label">Input</div>
+                    <div class="log-cleaned">${escHtml(label)}</div>
+                </div>
+                <div class="log-compare-divider"></div>
+                <div class="log-compare-col-result">
+                    <div class="log-section-label">Rosenstiels</div>
+                    <div class="log-searching-row">
+                        <span class="log-searching-text">Searching</span>
+                        <div class="dots"><span></span><span></span><span></span></div>
+                        <span class="log-phase" id="livePhase"></span>
+                    </div>
+                </div>
+            </div>
+            <span class="pill pill-active">Active</span>`;
+        activePhaseEl = div.querySelector('#livePhase');
+        div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function setPhase(text) { if (activePhaseEl) activePhaseEl.textContent = text; }
+
+    const confirmedSelections = new Map();
+
+    function diffSpan(word, cls) { return `<span class="${cls}">${escHtml(word)}</span>`; }
+
+    function highlightWords(text, presentToks, cls) {
+        return text.split(/(\s+)/).map(word => {
+            const w = tokenise(word);
+            if (!w.length) return escHtml(word);
+            return w.every(t => tokenCovered(t, presentToks)) ? escHtml(word) : diffSpan(word, cls);
+        }).join('');
+    }
+
+    function setNodeResult(div, label, result, candidates, entryIndex, emailLines, entries, outputEl, copyBtn, inputToks, showDiff) {
+        activePhaseEl = null;
+        const iToks = inputToks || tokenise(label);
+        if (result) {
+            div.className = 'log-item found';
+            if (showDiff) {
+                const resultToks = tokenise(result.title + ' ' + result.artist);
+                const inputHtml  = highlightWords(label, resultToks, 'diff-missing');
+                const resultHtml = highlightWords(result.title, iToks, 'diff-extra');
+                const hasExtraTitle = resultHtml.includes('diff-extra');
+                const hasMissingInput = inputHtml.includes('diff-missing');
+                div.className = 'log-item found';
+                div.innerHTML = `
+                    <div class="log-compare">
+                        <div class="log-compare-col-input">
+                            <div class="log-section-label">Input</div>
+                            <div class="log-cleaned">${inputHtml}</div>
+                        </div>
+                        <div class="log-compare-divider"></div>
+                        <div class="log-compare-col-result">
+                            <div class="log-section-label">Rosenstiels</div>
+                            <div class="log-found-title">${resultHtml}</div>
+                            <div class="log-artist">${escHtml(result.artist)}</div>
+                            <a class="log-url" href="${escHtml(result.url)}" target="_blank">${escHtml(result.url)}</a>
+                        </div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;width:110px;">
+                        <span class="pill pill-found">${hasExtraTitle ? 'Title Mismatched' : hasMissingInput ? 'Name Mismatched' : 'Exact Match'}</span>
+                        ${(hasExtraTitle || hasMissingInput) ? '<span style="font-size:0.5rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#b45309;text-align:center;line-height:1.3;display:block;">Double-Check<br>Match</span>' : ''}
+                    </div>`;
+            } else {
+                div.innerHTML = `
+                    <div style="flex:1;min-width:0">
+                        <div class="log-found-title">${escHtml(result.title)}</div>
+                        <div class="log-artist">${escHtml(result.artist)}</div>
+                        <a class="log-url" href="${escHtml(result.url)}" target="_blank">${escHtml(result.url)}</a>
+                    </div>
+                    <span class="pill pill-found">Exact Match</span>`;
+            }
+        } else {
+            const cands = candidates || [];
+            div.className = cands.length ? 'log-item partial' : 'log-item not-found';
+            const multipleChoice = cands.length > 1;
+            let candsHtml = '';
+            if (cands.length) {
+                const candLabel = multipleChoice ? 'Multiple possible matches — tick to confirm' : 'Closest match — highlighted words not in your input';
+                candsHtml = `<div class="log-candidates-label">${candLabel}</div><div class="log-candidates" id="cands-${entryIndex}">` +
+                    cands.map((c, ci) => `
+                        <div class="log-candidate">
+                            ${c.thumb ? `<img class="log-candidate-thumb" src="${escHtml(c.thumb)}" alt="">` : `<div class="log-candidate-thumb-ph">🖼</div>`}
+                            <div class="log-candidate-info">
+                                <div class="log-candidate-title">${highlightWords(c.title, iToks, "diff-extra")}</div>
+                                <div class="log-candidate-artist">${escHtml(c.artist)}</div>
+                            </div>
+                            ${multipleChoice ? `<input type="checkbox" class="log-candidate-check" data-entry="${entryIndex}" data-ci="${ci}">` : ''}
+                        </div>`).join('') +
+                `</div>`;
+            }
+            const missingMsg = cands.length ? (multipleChoice ? 'No exact match — select below' : 'No exact match — review result') : 'No result found';
+            div.innerHTML = `
+                <div style="width:100%; grid-column: 1 / -1;">
+                    <div class="log-section-label">Input</div>
+                    <div class="log-cleaned">${highlightWords(label, tokenise(cands.map(c=>c.title+' '+c.artist).join(' ')), 'diff-missing')}</div>
+                    <div class="log-missing">${missingMsg}</div>
+                    ${candsHtml}
+                </div>`;
+            div.querySelectorAll('.log-candidate-check').forEach(chk => {
+                chk.addEventListener('change', () => {
+                    const ci = parseInt(chk.dataset.ci);
+                    const ei = parseInt(chk.dataset.entry);
+                    const container = document.getElementById(`cands-${ei}`);
+                    container.querySelectorAll('.log-candidate-check').forEach(c => { if (c !== chk) c.checked = false; });
+                    if (chk.checked) {
+                        const chosen = cands[ci];
+                        confirmedSelections.set(ei, chosen);
+                        emailLines[ei] = fmt(chosen);
+                        div.className = 'log-item found';
+                        const cToks = tokenise(chosen.title + ' ' + chosen.artist);
+                        div.innerHTML = `
+                            <div class="log-compare">
+                                <div class="log-compare-col">
+                                    <div class="log-section-label">Input</div>
+                                    <div class="log-cleaned">${highlightWords(label, cToks, 'diff-missing')}</div>
+                                </div>
+                                <div class="log-compare-divider"></div>
+                                <div class="log-compare-col">
+                                    <div class="log-section-label">Confirmed</div>
+                                    <div class="log-found-title">${highlightWords(chosen.title, iToks, 'diff-extra')}</div>
+                                    <div class="log-artist">${escHtml(chosen.artist)}</div>
+                                    <a class="log-url" href="${escHtml(chosen.url)}" target="_blank">${escHtml(chosen.url)}</a>
+                                </div>
+                            </div>
+                            <span class="pill pill-found">Confirmed Match</span>`;
+                    } else {
+                        confirmedSelections.delete(ei);
+                        emailLines[ei] = `!!! NOT FOUND: ${label} !!!\n\n`;
+                        div.className = 'log-item partial';
+                    }
+                    renderOutputCards(outputEl, emailLines, entries);
+                    copyBtn.disabled = !emailLines.some(l => l && !l.startsWith('!!!')); document.getElementById('copyListBtn').disabled = copyBtn.disabled;
+                });
+            });
+        }
+    }
+
+    let searching = false;
+
+    function resetAll() {
+        document.getElementById('jobCardInput').value = '';
+        document.getElementById('logList').innerHTML  = '<div class="empty-state"><div class="empty-icon">◎</div><div class="empty-text">Paste a job card and click<br>Run Search to begin</div></div>';
+        document.getElementById('output').innerHTML   = '<div class="empty-state" ><div class="empty-icon">✉</div><div class="empty-text">Email text will appear<br>as results are found</div></div>';
+        document.getElementById('foundDesc').innerText = 'Cleaned items appear instantly. URLs load as each is found.';
+        document.getElementById('colStatus').innerText = '—';
+        document.getElementById('colStatus').className = 'col-status';
+        document.getElementById('copyBtn').disabled = true;
+        searchResultCache.clear(); productCache.clear(); confirmedSelections.clear();
+        rateTs = []; activePhaseEl = null; searching = false;
+    }
+
+    function previewEntries() {
+        if (searching) return;
+        const text = document.getElementById('jobCardInput').value.trim();
+        const logList = document.getElementById('logList');
+        if (!text) {
+            logList.innerHTML = '<div class="empty-state"><div class="empty-icon">◎</div><div class="empty-text">Paste a job card and click<br>Run Search to begin</div></div>';
+            return;
+        }
+        const entries = parseBlob(text);
+        if (!entries.length) {
+            logList.innerHTML = '<div class="empty-state"><div class="empty-icon">◎</div><div class="empty-text">Paste a job card and click<br>Run Search to begin</div></div>';
+            return;
+        }
+        logList.innerHTML = '';
+        for (const entry of entries) {
+            logList.appendChild(createQueuedNode(cleanLabel(entry.value)));
+        }
+    }
+
+    async function runSearch() {
+        if (searching) return;
+        const text = document.getElementById('jobCardInput').value.trim();
+        if (!text) return;
+
+        const entries = parseBlob(text);
+        if (!entries.length) { document.getElementById('colStatus').innerText = 'Nothing detected'; return; }
+
+        searching = true;
+        searchResultCache.clear(); productCache.clear(); confirmedSelections.clear(); rateTs = [];
+
+        const logList   = document.getElementById('logList');
+        const outputEl  = document.getElementById('output');
+        const foundDesc = document.getElementById('foundDesc');
+        const colStatus = document.getElementById('colStatus');
+        const copyBtn   = document.getElementById('copyBtn');
+
+        logList.innerHTML = ''; outputEl.innerHTML = '';
+        copyBtn.disabled = true; document.getElementById('copyListBtn').disabled = true;
+        colStatus.className = 'col-status running';
+        colStatus.innerText = `0 / ${entries.length}`;
+
+        const nodes      = [];
+        const emailLines = new Array(entries.length).fill('');
+
+        for (const entry of entries) {
+            const node = createQueuedNode(cleanLabel(entry.value));
+            nodes.push(node);
+            logList.appendChild(node);
+        }
+        foundDesc.innerText = `${entries.length} item${entries.length !== 1 ? 's' : ''} detected — starting search…`;
+
+        let foundCount = 0;
+
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            const label = cleanLabel(entry.value);
+            colStatus.innerText = `${i + 1} / ${entries.length}`;
+
+            let result = null;
+            let candidates = [];
+
+            setNodeActive(nodes[i], label);
+
+            if (entry.type === 'url') {
+                setPhase('Direct URL');
+                result = await fetchProductDirect(entry.value);
+                if (result) { nodes[i].querySelector('.log-cleaned').textContent = result.title.toUpperCase(); }
+            } else if (entry.type === 'xt') {
+                result = await xtSearch(entry.value, setPhase);
+                if (result) { nodes[i].querySelector('.log-cleaned').textContent = result.title.toUpperCase(); }
+            } else {
+                const sr = await smartSearch(entry.value, setPhase);
+                result = sr.result;
+                candidates = sr.candidates || [];
+                if (sr.inputToks) entry._inputToks = sr.inputToks;
+            }
+
+            foundCount += result ? 1 : 0;
+            emailLines[i] = result ? fmt(result) : `!!! NOT FOUND: ${entry.raw} !!!\n\n`;
+            setNodeResult(nodes[i], label, result, candidates, i, emailLines, entries, outputEl, copyBtn, entry._inputToks, entry.type === 'name');
+
+            renderOutputCards(outputEl, emailLines, entries);
+            copyBtn.disabled = !emailLines.some(l => l && !l.startsWith('!!!')); document.getElementById('copyListBtn').disabled = copyBtn.disabled;
+            foundDesc.innerText = `${foundCount} of ${entries.length} found`;
+        }
+
+        colStatus.innerText = `${foundCount} / ${entries.length} Found`;
+        colStatus.className = 'col-status done';
+        searching = false;
+    }
+
+    function lineToHtml(line) {
+        return line.replace(/\n\n$/, '').split('\n').map(seg => {
+            const urlM = seg.match(/^(https?:\/\/[^\s]+)$/);
+            return urlM
+                ? '<a href="' + escHtml(urlM[1]) + '" target="_blank" class="out-url">' + escHtml(urlM[1]) + '</a>'
+                : escHtml(seg);
+        }).join('<br>');
+    }
+
+    function renderOutputCards(outputEl, emailLines, entries) {
+        outputEl.innerHTML = '';
+        const seenUrls = new Set();
+        for (let i = 0; i < emailLines.length; i++) {
+            if (!emailLines[i]) continue;
+            const isFound = !emailLines[i].startsWith('!!!');
+            const urlM = emailLines[i].match(/https?:\/\/[^\s]+/);
+            const url = urlM ? urlM[0] : null;
+            const isDuplicate = isFound && url && seenUrls.has(url);
+            if (isFound && url) seenUrls.add(url);
+            const card = document.createElement('div');
+            card.className = 'out-card' + (isFound ? '' : ' not-found') + (isDuplicate ? ' duplicate' : '');
+            if (isDuplicate) card.dataset.duplicate = '1';
+            const cached = isFound ? findCachedByLine(emailLines[i]) : null;
+            const thumb  = cached && cached.thumb ? cached.thumb : null;
+            let imgEl;
+            if (thumb) {
+                const wrap = document.createElement('div');
+                wrap.className = 'out-thumb-wrap';
+                wrap.setAttribute('aria-hidden', 'true');
+                const img = document.createElement('img');
+                img.className = 'out-thumb';
+                img.src = thumb; img.alt = '';
+                wrap.appendChild(img);
+                imgEl = wrap;
+            } else {
+                imgEl = document.createElement('div');
+                imgEl.className = 'out-thumb-placeholder';
+                imgEl.setAttribute('aria-hidden', 'true');
+                imgEl.textContent = '🖼';
+            }
+            const textEl = document.createElement('div');
+            textEl.className = 'out-text' + (isFound ? '' : ' miss');
+            if (isFound) {
+                textEl.innerHTML = lineToHtml(emailLines[i]);
+                if (isDuplicate) {
+                    const badge = document.createElement('span');
+                    badge.className = 'out-duplicate-badge';
+                    badge.textContent = '⚠ Duplicate — not included when list is copied';
+                    textEl.appendChild(badge);
+                }
+            } else {
+                textEl.textContent = emailLines[i].replace(/\n\n$/, '');
+            }
+            card.appendChild(imgEl);
+            card.appendChild(textEl);
+            outputEl.appendChild(card);
+        }
+    }
+
+    function findCachedByLine(line) {
+        const urlM = line.match(/https?:\/\/[^\s]+/);
+        if (!urlM) return null;
+        const cached = productCache.get(urlM[0]);
+        return cached && cached !== 'SKIP' ? cached : null;
+    }
+
+    function copyList() {
+        const cards = [...document.querySelectorAll('.out-card:not(.not-found):not(.duplicate)')];
+        const btn = document.getElementById('copyListBtn');
+        const orig = btn.innerHTML;
+        const htmlParts = cards.map(card => {
+            const thumb = card.querySelector('.out-thumb');
+            const text = card.querySelector('.out-text');
+            const imgHtml = thumb ? `<p><img src="${thumb.src}" width="100" height="100" style="width:100px;height:100px;object-fit:cover;border-radius:6px;border:1px solid #e0e0e0;display:block;"></p>` : '';
+            const textHtml = text ? text.innerHTML.replace(/<br>/g, '\n').replace(/<a [^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g, '<a href="$1" style="color:#000000;text-decoration:none;">$2</a>') : '';
+            return `<div>${imgHtml}<div style="font-family:Arial,sans-serif;font-size:13px;line-height:2;color:#111;">${textHtml.replace(/\n/g,'<br>')}</div></div><p>&nbsp;</p>`;
+        });
+        const htmlBody = '<div>' + htmlParts.join('') + '</div>';
+        const plainParts = cards.map(card => card.querySelector('.out-text') ? card.querySelector('.out-text').textContent.trim() : '');
+        const plainText = plainParts.join('\n \n') + '\n \n';
+        const tryRich = () => navigator.clipboard.write([new ClipboardItem({
+            'text/plain': new Blob([plainText], { type: 'text/plain' }),
+            'text/html':  new Blob([htmlBody],  { type: 'text/html' })
+        })]);
+        tryRich().catch(() => navigator.clipboard.writeText(plainText)).then(() => {
+            btn.innerHTML = '✓ Copied';
+            setTimeout(() => btn.innerHTML = orig, 2000);
+        });
+    }
+
+    function copyOutput() {
+        const lines = [...document.querySelectorAll('.out-text:not(.miss)')].filter(el => {
+            const card = el.closest('.out-card');
+            return el.textContent.trim() && !(card && card.dataset.duplicate);
+        });
+        const plainParts = lines.map(el => el.textContent.trim());
+        const plainText = plainParts.join('\n \n') + '\n \n';
+        const htmlParts = lines.map(el => {
+            return el.innerHTML
+                .replace(/<br>/g, '\n')
+                .replace(/<a [^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g, '<a href="$1" style="color:#1a6e48;text-decoration:none;">$2</a>');
+        });
+        const htmlBody = '<div style="font-family:Arial,sans-serif;font-size:13px;line-height:2;color:#111;">'
+            + htmlParts.map(p => p.replace(/\n/g, '<br>')).join('<br>&nbsp;<br>')
+            + '</div>';
+        const btn = document.getElementById('copyBtn');
+        const orig = btn.innerHTML;
+        const tryRich = () => navigator.clipboard.write([new ClipboardItem({
+            'text/plain': new Blob([plainText], { type: 'text/plain' }),
+            'text/html':  new Blob([htmlBody],  { type: 'text/html'  })
+        })]);
+        tryRich().catch(() => navigator.clipboard.writeText(plainText)).then(() => {
+            btn.innerHTML = '✓ Copied';
+            setTimeout(() => btn.innerHTML = orig, 2000);
+        });
+    }
+</script>
+</body>
+</html>
