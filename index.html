@@ -283,6 +283,28 @@
                 }
                 continue;
             }
+
+            // Catch-all: only accept lines that plausibly look like an artwork/artist freetext search.
+            const isOrderCode   = /^\d{4,}[./]\d+/.test(line);
+            const isTooShort    = line.replace(/\s/g,'').length < 4;
+            const isProductionNote = /^(IN\/ON|DESIGN ISSUED|FRAME\s*[-–]|25%|CUSTOMER HAS|W\d+\/E|\d+\/\d+|ON ACCOUNT|DEPOSIT|DISPATCH|DELIVERY|ROLLING ART|SIGHT|SOUND|MECHANISM|ARCHIVE|CURRENT JOBS|COST SUMMARY|GENERAL DETAILS|ACCOUNT SUMMARY|INVOICE|DELIVERY ADDRESS|ORDER SUMMARY|SOP |Order |Customer |Creator|Created|Account |Sage |Name|SEARCH|RETURNS|DESPATCH|OFFICE|STOCK|ISSUE|SERVICE|TBC|TRADING PARK|TRADING ESTATE|INDUSTRIAL PARK|INDUSTRIAL ESTATE|BUSINESS PARK)/i.test(line.trim()) || /\bTRADING\b|\bESTATE\b/i.test(line);
+            const hasPercent    = line.includes('%');
+            const hasCurrency   = /[£$€]/.test(line);
+            const hasCodeChars  = /[\d\/&@#]/.test(line);
+            // At least 1 alpha word of 3+ letters (allows single-word searches like COUPOLE)
+            const alphaWords    = (line.match(/\b[A-Za-z]{3,}\b/g) || []);
+            if (!looksLikeJobCard && !isOrderCode && !isTooShort && !isProductionNote
+                && !hasPercent && !hasCurrency && !hasCodeChars
+                && alphaWords.length >= 2 && !NOISE.some(p => p.test(line))) {
+                const sku = extractSku(line);
+                entries.push({ type: 'name', value: line, raw: line, sku });
+            } else if (!looksLikeJobCard && !isOrderCode && !isProductionNote && !hasPercent && !hasCurrency && !hasCodeChars
+                && alphaWords.length === 1 && alphaWords[0].length >= 5
+                && !/^(ESSEX|LONDON|SURREY|SUSSEX|KENT|UPMINSTER|ROMFORD|OXFORD|CAMBRIDGE|BRISTOL|BIRMINGHAM|MANCHESTER|LIVERPOOL|ACCOUNT|DESIGN|OFFICE|SEARCH|STOCK|RETURNS|SERVICE|ISSUE|DESPATCH|SUMMARY|ADDRESS|DETAILS|GENERAL|INVOICE|DELIVERY|ARCHIVE|PAYMENT|CARRIAGE|DEPOSIT)$/i.test(line.trim())
+                && !NOISE.some(p => p.test(line))) {
+                const sku = extractSku(line);
+                entries.push({ type: 'name', value: line, raw: line, sku });
+            }
         }
         return entries;
     }
@@ -390,12 +412,27 @@
         const allResultToks = [...titleToks, ...artistToks];
         const uncoveredInput = inputToks.filter(t => !tokenCovered(t, allResultToks));
         const uncoveredTitle = titleToks.filter(t => !tokenCovered(t, inputToks));
+
+        // Exact: every input token found in result, and no extra title words
         if (uncoveredInput.length === 0 && uncoveredTitle.length === 0) return { type: 'exact', score: 1000 };
-        const coveredIn = inputToks.length - uncoveredInput.length;
+
+        const inputCoverage = (inputToks.length - uncoveredInput.length) / inputToks.length;
+        const coveredIn    = inputToks.length - uncoveredInput.length;
         const coveredTitle = titleToks.length - uncoveredTitle.length;
-        const ratio = (coveredIn + coveredTitle) / (inputToks.length + titleToks.length);
-        if (uncoveredInput.length === 0 && ratio >= 0.8) return { type: 'partial', score: Math.round(ratio * 400) };
-        if (ratio >= 0.7) return { type: 'partial', score: Math.round(ratio * 250) };
+        const combinedRatio = (coveredIn + coveredTitle) / (inputToks.length + titleToks.length);
+
+        // All input tokens matched — title just has extra words (e.g. longer subtitle, date, subtitle)
+        // Score based purely on input coverage so vague searches still surface candidates
+        if (uncoveredInput.length === 0) {
+            const score = 300 + Math.round(combinedRatio * 100); // 300–400 range
+            return { type: 'partial', score };
+        }
+
+        // Most input tokens matched
+        if (inputCoverage >= 0.75 || combinedRatio >= 0.7) {
+            return { type: 'partial', score: Math.round(inputCoverage * 250) };
+        }
+
         return { type: 'none', score: 0 };
     }
 
