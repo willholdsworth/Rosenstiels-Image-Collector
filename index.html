@@ -217,27 +217,90 @@
         /^(IN|ON|WALL|FLOOR|CEILING|PRODUCTION|DISPATCH|DELIVERY|DEPOSIT|PAID|CUSTOMER|ORDER|QTY|FRAME|MOUNT|MECHANISM|CUSTOM|ROLLING|WITH|IMAGE|PRINT|ARTWORK)$/i
     ];
 
+    // Extract a trailing Rosenstiels SKU from a string, e.g. "GM3196", "RX82954-D5", "POD12948", "DXT12868"
+    function extractSku(str) {
+        const m = str.match(/[-\u2013]\s*([A-Z]{2,4}\d[\w]*)(?:-[A-Z0-9]{1,3})?\s*$/i);
+        return m ? m[1].toUpperCase() : null;
+    }
+
     function parseBlob(text) {
         const entries = [];
         const lines = text.split('\n');
+
+        // Detect spreadsheet paste: majority of non-empty lines contain tabs
+        const nonEmpty = lines.filter(l => l.trim());
+        const tabCount = nonEmpty.filter(l => l.includes('\t')).length;
+        const isSpreadsheet = tabCount > 0 && tabCount >= nonEmpty.length * 0.5;
+
         for (const rawLine of lines) {
             const line = rawLine.trim();
             if (!line) continue;
+
+            // Rosenstiels URL — always highest priority
             const urlM = line.match(/https?:\/\/(?:www\.)?rosenstiels\.com\/art\/print\/[^\s"')>]*/i);
             if (urlM) { entries.push({ type: 'url', value: urlM[0], raw: urlM[0] }); continue; }
+
+            // Spreadsheet row (tab-separated) — take last non-empty column as the artwork string
+            if (isSpreadsheet && line.includes('\t')) {
+                const cols = line.split('\t').map(c => c.trim()).filter(Boolean);
+                if (cols.length >= 2) {
+                    const lastCol = cols[cols.length - 1];
+                    if (/^(room|bedroom|sitting|type|size|status|ref|col|qty|frame)/i.test(lastCol)) continue;
+                    const xtM = lastCol.match(/\bXT\s*(\d{4,6})\b/i);
+                    if (xtM) { entries.push({ type: 'xt', value: 'XT' + xtM[1], raw: line }); continue; }
+                    const sku = extractSku(lastCol);
+                    if (lastCol.length > 2 && !NOISE.some(p => p.test(lastCol))) {
+                        entries.push({ type: 'name', value: lastCol, raw: line, sku });
+                    }
+                }
+                continue;
+            }
+
+            // XT code
             const xtM = line.match(/\bXT\s*(\d{4,6})\b/i);
             if (xtM) { entries.push({ type: 'xt', value: 'XT' + xtM[1], raw: line }); continue; }
+
+            // "IMAGE - ..." / "PRINT - ..." style job card lines
             const nameM = line.match(/(?:IMAGE|PRINT|ARTWORK?)\s*[-:]\s*(.+)/i);
             if (nameM) {
                 const s = nameM[1].trim().replace(/https?:\/\/\S+/gi, '').trim();
-                if (s.length > 2 && !NOISE.some(p => p.test(s))) entries.push({ type: 'name', value: s, raw: line });
+                if (s.length > 2 && !NOISE.some(p => p.test(s))) {
+                    const sku = extractSku(s);
+                    entries.push({ type: 'name', value: s, raw: line, sku });
+                }
+                continue;
+            }
+
+            // Plain artwork line: "Title by Artist Name" — must be word "by" between title words and a proper name
+            // Reject anything that looks like a job card production row
+            const looksLikeJobCard = /\d{2}-[A-Z]{3}-\d{2}|\bPRODUCTION\b|\bFRAME\b|£|\bCUSTOM\b/i.test(line);
+            const looksLikeArtwork = /^.+\s+by\s+[A-Z][a-zA-Z.]/.test(line) || /^.+\s+by\s+[A-Z][A-Z. ]{3,}$/.test(line);
+            if (!looksLikeJobCard && looksLikeArtwork) {
+                const s = line.trim();
+                if (s.length > 5 && !NOISE.some(p => p.test(s))) {
+                    const sku = extractSku(s);
+                    entries.push({ type: 'name', value: s, raw: line, sku });
+                }
+                continue;
             }
         }
         return entries;
     }
 
     function cleanLabel(raw) {
-        return raw.replace(/^(IMAGE|PRINT|ARTWORK)\s*[-:]\s*/i, '').replace(/https?:\/\/\S+/gi, '').trim();
+        return raw
+            .replace(/^(IMAGE|PRINT|ARTWORK)\s*[-:]\s*/i, '')
+            .replace(/https?:\/\/\S+/gi, '')
+            // Strip trailing SKU code e.g. "- GM3196" or "- RX82954-D5"
+            .replace(/\s*[-\u2013]\s*[A-Z]{2,4}\d[\w-]*\s*$/i, '')
+            .trim();
+    }
+
+    // Title-only label for display (strips "by Artist" suffix too)
+    function titleLabel(raw) {
+        return cleanLabel(raw)
+            .replace(/\s+by\s+.+$/i, '')
+            .trim();
     }
 
     function searchUrl(q, order, page) {
@@ -422,6 +485,34 @@
             searchResultCache.set(key, products);
             if (products.length) {
                 const match = products.find(p => p.url.toUpperCase().includes(xtCode.toUpperCase()));
+                if (match) return match;
+                return products[0];
+            }
+        }
+        return null;
+    }
+
+    // Search by any Rosenstiels SKU code (GM3196, POD12948, RX82954-D5, DXT12868, etc.)
+    async function skuSearch(sku, statusCb) {
+        // sku is already the base code (variant suffixes like -D5, -A6 stripped by extractSku)
+        if (statusCb) statusCb(`SKU: ${sku}`);
+        for (const order of ['ByRelevance', 'ByTitle', 'ByArtist']) {
+            const key = `${order}::${sku.toLowerCase()}`;
+            if (searchResultCache.has(key)) {
+                const cached = searchResultCache.get(key);
+                if (cached.length) {
+                    const match = cached.find(p => p.url.toUpperCase().includes(sku.toUpperCase()));
+                    if (match) return match;
+                    return cached[0];
+                }
+                continue;
+            }
+            let html;
+            try { html = await rateFetch(searchUrl(sku, order, 1)); } catch { continue; }
+            const products = extractProductsFromSearchHtml(html);
+            searchResultCache.set(key, products);
+            if (products.length) {
+                const match = products.find(p => p.url.toUpperCase().includes(sku.toUpperCase()));
                 if (match) return match;
                 return products[0];
             }
@@ -686,10 +777,18 @@
                 result = await xtSearch(entry.value, setPhase);
                 if (result) { nodes[i].querySelector('.log-cleaned').textContent = result.title.toUpperCase(); }
             } else {
-                const sr = await smartSearch(entry.value, setPhase);
-                result = sr.result;
-                candidates = sr.candidates || [];
-                if (sr.inputToks) entry._inputToks = sr.inputToks;
+                // If we have a SKU code, try that first — it's the most reliable signal
+                if (entry.sku) {
+                    result = await skuSearch(entry.sku, setPhase);
+                    if (result) { nodes[i].querySelector('.log-cleaned').textContent = result.title.toUpperCase(); }
+                }
+                // Fall back to smart name search if SKU search didn't find anything
+                if (!result) {
+                    const sr = await smartSearch(entry.value, setPhase);
+                    result = sr.result;
+                    candidates = sr.candidates || [];
+                    if (sr.inputToks) entry._inputToks = sr.inputToks;
+                }
             }
 
             foundCount += result ? 1 : 0;
