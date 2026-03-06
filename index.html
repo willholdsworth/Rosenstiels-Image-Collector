@@ -287,7 +287,7 @@
             // Catch-all: only accept lines that plausibly look like an artwork/artist freetext search.
             const isOrderCode   = /^\d{4,}[./]\d+/.test(line);
             const isTooShort    = line.replace(/\s/g,'').length < 4;
-            const isProductionNote = /^(IN\/ON|DESIGN ISSUED|FRAME\s*[-–]|25%|CUSTOMER HAS|W\d+\/E|\d+\/\d+|ON ACCOUNT|DEPOSIT|DISPATCH|DELIVERY|ROLLING ART|SIGHT|SOUND|MECHANISM|ARCHIVE|CURRENT JOBS|COST SUMMARY|GENERAL DETAILS|ACCOUNT SUMMARY|INVOICE|DELIVERY ADDRESS|ORDER SUMMARY|SOP |Order |Customer |Creator|Created|Account |Sage |Name|SEARCH|RETURNS|DESPATCH|OFFICE|STOCK|ISSUE|SERVICE|TBC|TRADING PARK|TRADING ESTATE|INDUSTRIAL PARK|INDUSTRIAL ESTATE|BUSINESS PARK)/i.test(line.trim()) || /\bTRADING\b|\bESTATE\b/i.test(line);
+            const isProductionNote = /^(IN\/ON|DESIGN ISSUED|DESIGN REQUIRED|DESIGN AWAITING|DESIGN APPROVED|DESIGN\s+[-\u2013]|FRAME\s*[-–]|25%|CUSTOMER HAS|W\d+\/E|\d+\/\d+|ON ACCOUNT|DEPOSIT|DISPATCH|DELIVERY|ROLLING ART|SIGHT|SOUND|MECHANISM|ARCHIVE|CURRENT JOBS|COST SUMMARY|GENERAL DETAILS|ACCOUNT SUMMARY|INVOICE|DELIVERY ADDRESS|ORDER SUMMARY|SOP |Order |Customer |Creator|Created|Account |Sage |Name|SEARCH|RETURNS|DESPATCH|OFFICE|STOCK|ISSUE|SERVICE|TBC|TRADING PARK|TRADING ESTATE|INDUSTRIAL PARK|INDUSTRIAL ESTATE|BUSINESS PARK)/i.test(line.trim()) || /\bTRADING\b|\bESTATE\b/i.test(line);
             const hasPercent    = line.includes('%');
             const hasCurrency   = /[£$€]/.test(line);
             const hasCodeChars  = /[\d\/&@#]/.test(line);
